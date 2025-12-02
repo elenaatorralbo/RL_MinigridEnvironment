@@ -281,12 +281,14 @@ if __name__ == "__main__":
     warnings.filterwarnings("ignore")
 
     log_path = os.path.join('Training', 'Logs')
-    model_path = os.path.join('Training', 'Saved_Models', 'PPO_Ruins_Lava')
+    # Cambiamos el nombre del modelo para reflejar el entrenamiento extenso
+    model_path = os.path.join('Training', 'Saved_Models', 'PPO_Ruins_Lava_Tocho')
     os.makedirs(log_path, exist_ok=True)
 
-    print("--- Entrenando THE RUINED TEMPLE (Versión Peligrosa) ---")
+    print("--- Entrenando THE RUINED TEMPLE (Versión Extensa/Tocho) ---")
 
-    total_timesteps = 1000
+    # Aumentamos significativamente los timesteps para un entrenamiento serio
+    total_timesteps = 1_000_000
 
     env_train = gym.make('MiniGrid-Ruins-v0', render_mode=None)
     env_train = ImgObsWrapper(env_train)
@@ -304,7 +306,8 @@ if __name__ == "__main__":
         tensorboard_log=log_path,
         learning_rate=0.0003,
         gamma=0.999,  # Súper visión a largo plazo
-        ent_coef=0.02  # Alta exploración necesaria por los obstáculos
+        ent_coef=0.02,  # Alta exploración necesaria por los obstáculos
+        n_steps=4096  # Aumenta el buffer de experiencia recolectada por actualización
     )
 
     model.learn(total_timesteps=total_timesteps)
@@ -317,6 +320,7 @@ if __name__ == "__main__":
     env_test = gym.make('MiniGrid-Ruins-v0', render_mode='human')
     env_test = ImgObsWrapper(env_test)
 
+    # El modelo cargará desde la nueva ruta de guardado
     model = PPO.load(model_path, env=env_test)
     obs, _ = env_test.reset()
 
