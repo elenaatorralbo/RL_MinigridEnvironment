@@ -252,7 +252,7 @@ if __name__ == "__main__":
     )
 
     # --- BARRA DE PROGRESO MANUAL ---
-    total_timesteps = 5_000_000
+    total_timesteps = 1
     bar_callback = ProgressBarCallback(total_timesteps)
 
     print(f"🚀 Iniciando entrenamiento. Objetivo: {total_timesteps} pasos.")
