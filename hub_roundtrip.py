@@ -16,12 +16,12 @@ from tqdm.auto import tqdm
 
 
 # =========================================================
-# 1. WRAPPER 3 BOTONES (NECESARIO)
+# 1. WRAPPER 3 BOTONES (Fundamental para que no se líe)
 # =========================================================
 class SimpleMovementWrapper(gym.ActionWrapper):
     def __init__(self, env):
         super().__init__(env)
-        self.action_space = spaces.Discrete(3)
+        self.action_space = spaces.Discrete(3)  # 0: Izq, 1: Der, 2: Avanzar
 
     def action(self, act):
         return act
@@ -29,13 +29,14 @@ class SimpleMovementWrapper(gym.ActionWrapper):
     # =========================================================
 
 
-# 2. ENTORNO: HUB QUANTUM (Teletransporte Agresivo)
+# 2. ENTORNO: HUB IDA Y VUELTA (ROUNDTRIP)
 # =========================================================
-class HubQuantumEnv(MiniGridEnv):
+class HubRoundtripEnv(MiniGridEnv):
     def __init__(self, render_mode=None):
         self.grid_w = 19
         self.grid_h = 19
 
+        # Posiciones Clave
         self.pos_key_red = (9, 9);
         self.pos_door_red = (9, 6)
         self.pos_key_blue = (9, 1);
@@ -44,13 +45,13 @@ class HubQuantumEnv(MiniGridEnv):
         self.pos_door_yellow = (6, 9)
         self.pos_goal = (1, 9)
 
-        mission_space = MissionSpace(mission_func=lambda: "quantum leap navigation")
+        mission_space = MissionSpace(mission_func=lambda: "go get keys and return")
 
         super().__init__(
             mission_space=mission_space,
             width=self.grid_w,
             height=self.grid_h,
-            max_steps=2500,
+            max_steps=3000,  # Un poco más de tiempo para la vuelta
             render_mode=render_mode
         )
 
@@ -58,7 +59,7 @@ class HubQuantumEnv(MiniGridEnv):
         self.grid = Grid(width, height)
         self.grid.wall_rect(0, 0, width, height)
 
-        # Muros
+        # --- ESTRUCTURA DE MUROS ---
         h_left, h_right, h_top, h_bottom = 6, 12, 6, 12
         self.grid.vert_wall(h_left, 0, h_top);
         self.grid.horz_wall(0, h_top, h_left)
@@ -70,7 +71,7 @@ class HubQuantumEnv(MiniGridEnv):
         self.grid.horz_wall(h_right, h_bottom, width - h_right)
         self.grid.wall_rect(h_left, h_top, 7, 7)
 
-        # Puertas
+        # --- PUERTAS ---
         self.door_red = Door('red', is_locked=True);
         self.grid.set(*self.pos_door_red, self.door_red)
         self.door_blue = Door('blue', is_locked=True);
@@ -78,7 +79,7 @@ class HubQuantumEnv(MiniGridEnv):
         self.door_yellow = Door('yellow', is_locked=True);
         self.grid.set(*self.pos_door_yellow, self.door_yellow)
 
-        # Objetos
+        # --- OBJETOS ---
         self.key_red = Key('red');
         self.grid.set(*self.pos_key_red, self.key_red)
         self.key_blue = Key('blue');
@@ -87,20 +88,20 @@ class HubQuantumEnv(MiniGridEnv):
         self.grid.set(*self.pos_key_yellow, self.key_yellow)
         self.place_obj(Goal(), top=self.pos_goal, size=(1, 1))
 
-        # --- EMBUDO ESTRECHO (Lava por todas partes) ---
-        # Sala Norte
+        # --- EL EMBUDO (Pasillos estrechos para guiar, pero sin bloquear) ---
+        # Sala Norte (Solo dejamos libre x=9)
         for y in range(1, h_top):
             self.grid.set(7, y, Lava());
             self.grid.set(8, y, Lava())
             self.grid.set(10, y, Lava());
             self.grid.set(11, y, Lava())
-        # Sala Este
+        # Sala Este (Solo libre y=9)
         for x in range(h_right + 1, width - 1):
             self.grid.set(x, 7, Lava());
             self.grid.set(x, 8, Lava())
             self.grid.set(x, 10, Lava());
             self.grid.set(x, 11, Lava())
-        # Sala Oeste
+        # Sala Oeste (Solo libre y=9)
         for x in range(1, h_left):
             self.grid.set(x, 6, Lava());
             self.grid.set(x, 7, Lava());
@@ -108,15 +109,16 @@ class HubQuantumEnv(MiniGridEnv):
             self.grid.set(x, 10, Lava());
             self.grid.set(x, 11, Lava());
             self.grid.set(x, 12, Lava())
-        # Sur y Esquinas
+        # Relleno Sur
         for x in range(h_left + 1, h_right):
             for y in range(h_bottom + 1, height - 1): self.grid.set(x, y, Lava())
+        # Esquinas Hub
         self.grid.set(h_left + 1, h_top + 1, Lava());
         self.grid.set(h_right - 1, h_top + 1, Lava())
         self.grid.set(h_left + 1, h_bottom - 1, Lava());
         self.grid.set(h_right - 1, h_bottom - 1, Lava())
 
-        # Spawn (8,9)
+        # Spawn (8,9) mirando a la llave
         self.agent_pos = (8, 9)
         self.agent_dir = 0
         self.grid.set(8, 9, None)
@@ -135,13 +137,15 @@ class HubQuantumEnv(MiniGridEnv):
         return obs, info
 
     def _get_target_pos(self):
-        if not self.has_red: return np.array(self.pos_key_red)
-        if not self.opened_red: return np.array(self.pos_door_red)
-        if not self.has_blue: return np.array(self.pos_key_blue)
-        if not self.opened_blue: return np.array(self.pos_door_blue)
-        if not self.has_yellow: return np.array(self.pos_key_yellow)
-        if not self.opened_yellow: return np.array(self.pos_door_yellow)
-        return np.array(self.pos_goal)
+        # LÓGICA DE OBJETIVOS
+        if not self.has_red: return np.array(self.pos_key_red)  # 1. Llave Roja
+        if not self.opened_red: return np.array(self.pos_door_red)  # 2. Puerta Roja
+        if not self.has_blue: return np.array(self.pos_key_blue)  # 3. Llave Azul (Norte)
+        if not self.opened_blue: return np.array(
+            self.pos_door_blue)  # 4. Puerta Azul (Este) -> ¡Esto le obliga a volver!
+        if not self.has_yellow: return np.array(self.pos_key_yellow)  # 5. Llave Amarilla
+        if not self.opened_yellow: return np.array(self.pos_door_yellow)  # 6. Puerta Amarilla
+        return np.array(self.pos_goal)  # 7. Meta
 
     def _get_dist_to(self, target):
         return np.sum(np.abs(np.array(self.agent_pos) - target))
@@ -153,96 +157,83 @@ class HubQuantumEnv(MiniGridEnv):
         obs, reward, terminated, truncated, info = super().step(action)
         state_changed = False
 
-        # --- 1. IMÁN DE LLAVES + TELETRANSPORTE A PUERTA ---
+        # --- 1. IMÁN DE LLAVES (Pickup Automático) ---
+        # Si está a 1 casilla o menos, la coge.
+
+        # Llave Roja
         if not self.has_red and self.dist_between(self.agent_pos, self.pos_key_red) <= 1:
             self.has_red = True;
             self.grid.set(*self.pos_key_red, None)
-            # TP a Puerta Roja
-            self.agent_pos = (9, 8);
-            self.agent_dir = 3;
-            reward += 20.0;
+            reward += 10.0;
             state_changed = True
+            # Pequeña ayuda de giro, pero NO de posición. Solo le encaramos.
+            self.agent_dir = 3  # Mirar Norte
 
+        # Llave Azul
         elif not self.has_blue and self.dist_between(self.agent_pos, self.pos_key_blue) <= 1:
             self.has_blue = True;
             self.grid.set(*self.pos_key_blue, None)
-            # TP a Puerta Azul (Ojo, ahora tiene que bajar, lo encaramos al Sur)
-            # Corrección: Después de coger azul, tiene que volver al centro.
-            # Lo ponemos en (9, 3) mirando al Sur (1) para que baje
-            self.agent_pos = (9, 3);
-            self.agent_dir = 1;
             reward += 20.0;
             state_changed = True
+            # ¡IMPORTANTE! Al coger la azul, el target pasa a ser la Puerta Azul (al Sur-Este).
+            # Matemáticamente, para ir ahí, TIENE QUE BAJAR.
+            # Le ayudamos solo girándole hacia el Sur para que vea el camino de vuelta.
+            self.agent_dir = 1  # Mirar Sur
+            print(">> ¡Tengo la azul! Volviendo a base...")
 
+        # Llave Amarilla
         elif not self.has_yellow and self.dist_between(self.agent_pos, self.pos_key_yellow) <= 1:
             self.has_yellow = True;
             self.grid.set(*self.pos_key_yellow, None)
-            # TP a Puerta Amarilla (Oeste)
-            # Lo ponemos en (15, 9) mirando al Oeste (2) para que vuelva al centro
-            self.agent_pos = (15, 9);
-            self.agent_dir = 2;
             reward += 20.0;
             state_changed = True
+            self.agent_dir = 2  # Mirar Oeste (Vuelta)
 
-        # --- 2. AUTO-OPEN PUERTAS + TELETRANSPORTE A OBJETIVO (SALTO CUÁNTICO) ---
+        # --- 2. AUTO-OPEN (Puertas) ---
         front_cell = self.grid.get(*self.front_pos)
         if action == self.actions.forward and front_cell and front_cell.type == 'door':
-
-            # PUERTA ROJA -> SALTO A LA LLAVE AZUL
+            # Solo abrimos si tenemos la llave (el estado has_X se gestiona arriba)
             if front_cell.color == 'red' and self.has_red:
                 self.door_red.is_open = True;
                 self.opened_red = True;
                 self.has_red = False
-                # LA CLAVE: Lo ponemos en (9, 3). La llave azul está en (9, 1). ¡Está a 2 pasos!
-                self.agent_pos = (9, 3);
-                self.agent_dir = 3;
-                reward += 20.0;
+                reward += 10.0;
                 state_changed = True
-                print(">>> SALTO CUÁNTICO A LA LLAVE AZUL")
-
-            # PUERTA AZUL -> SALTO A LA LLAVE AMARILLA
             elif front_cell.color == 'blue' and self.has_blue:
                 self.door_blue.is_open = True;
                 self.opened_blue = True;
                 self.has_blue = False
-                # La llave amarilla está en (17, 9). Lo ponemos en (15, 9).
-                self.agent_pos = (15, 9);
-                self.agent_dir = 0;
-                reward += 20.0;
+                reward += 10.0;
                 state_changed = True
-                print(">>> SALTO CUÁNTICO A LA LLAVE AMARILLA")
-
-            # PUERTA AMARILLA -> SALTO A LA META
             elif front_cell.color == 'yellow' and self.has_yellow:
                 self.door_yellow.is_open = True;
                 self.opened_yellow = True;
                 self.has_yellow = False
-                # La meta está en (1, 9). Lo ponemos en (3, 9).
-                self.agent_pos = (3, 9);
-                self.agent_dir = 2;
-                reward += 20.0;
+                reward += 10.0;
                 state_changed = True
-                print(">>> SALTO CUÁNTICO A LA META")
 
         # --- REWARDS ---
         if terminated and reward > 0: reward += 100.0
 
+        # Coste de vida pequeño
         reward -= 0.01
 
+        # SHAPING AGRESIVO
         self.target_pos = self._get_target_pos()
         dist_now = self._get_dist_to(self.target_pos)
 
         if state_changed:
             self.prev_dist = dist_now
         else:
-            reward += (self.prev_dist - dist_now) * 2.0
+            # Multiplicador x3: Cada paso en la dirección correcta da mucho placer
+            reward += (self.prev_dist - dist_now) * 3.0
             self.prev_dist = dist_now
 
         return obs, reward, terminated, truncated, info
 
 
 try:
-    register(id='MiniGrid-HubQuantum-v17', entry_point='__main__:HubQuantumEnv')
+    register(id='MiniGrid-HubRoundtrip-v19', entry_point='__main__:HubRoundtripEnv')
 except:
     pass
 
@@ -251,8 +242,9 @@ except:
 # =========================================================
 
 if __name__ == "__main__":
-    env_id = "MiniGrid-HubQuantum-v17"
-    TOTAL_TIMESTEPS = 600_000
+    env_id = "MiniGrid-HubRoundtrip-v19"
+    # Necesitamos más pasos porque ahora tiene que volver andando
+    TOTAL_TIMESTEPS = 800_000
 
     vec_env = make_vec_env(env_id, n_envs=8, wrapper_class=lambda e: FlatObsWrapper(SimpleMovementWrapper(e)))
 
@@ -263,7 +255,7 @@ if __name__ == "__main__":
         learning_rate=0.0003,
         n_steps=2048,
         batch_size=64,
-        ent_coef=0.02,
+        ent_coef=0.01,
         gamma=0.99,
         device="cpu"
     )
@@ -277,9 +269,9 @@ if __name__ == "__main__":
         def _on_training_end(self): self.pbar.close()
 
 
-    print(f"🚀 Iniciando (Modo: SALTO CUÁNTICO)...")
+    print(f"🚀 Iniciando (Modo: IDA Y VUELTA SIN MUROS)...")
     model.learn(total_timesteps=TOTAL_TIMESTEPS, callback=ProgressBar(TOTAL_TIMESTEPS))
-    model.save("ppo_hub_quantum")
+    model.save("ppo_hub_roundtrip")
 
     # Visualizar
     print("--- Testeando ---")
@@ -287,7 +279,7 @@ if __name__ == "__main__":
     env = SimpleMovementWrapper(env)
     env = FlatObsWrapper(env)
 
-    model = PPO.load("ppo_hub_quantum", device="cpu")
+    model = PPO.load("ppo_hub_roundtrip", device="cpu")
 
     obs, _ = env.reset()
     while True:
