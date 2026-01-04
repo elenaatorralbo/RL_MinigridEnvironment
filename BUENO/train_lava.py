@@ -5,38 +5,10 @@ from minigrid.envs.multiroom import MultiRoomEnv
 from minigrid.core.world_object import Door, Key, Lava, Wall, Goal
 from minigrid.core.grid import Grid
 from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import CheckpointCallback, BaseCallback
+from stable_baselines3.common.callbacks import CheckpointCallback
 import random
 import os
 import collections
-from tqdm.auto import tqdm  # <--- IMPORTANTE: Importamos tqdm
-
-
-# =============================================================================
-# 0. CALLBACK PARA LA BARRA DE PROGRESO (AÑADIDO)
-# =============================================================================
-class ProgressBarCallback(BaseCallback):
-    """
-    Callback personalizado para mostrar una barra de progreso detallada.
-    """
-
-    def __init__(self, total_timesteps, description="Entrenando"):
-        super().__init__()
-        self.total_timesteps = total_timesteps
-        self.description = description
-        self.pbar = None
-
-    def _on_training_start(self):
-        self.pbar = tqdm(total=self.total_timesteps, desc=self.description, dynamic_ncols=True)
-
-    def _on_step(self):
-        self.pbar.update(self.training_env.num_envs)
-        return True
-
-    def _on_training_end(self):
-        if self.pbar:
-            self.pbar.close()
-
 
 # =============================================================================
 # 1. ENTORNO INTELIGENTE (LAVA SMART + MULTI KEYS)
@@ -44,9 +16,9 @@ class ProgressBarCallback(BaseCallback):
 class CorredorLavaSmart(MultiRoomEnv):
     def __init__(self, n_rooms=4, lava_prob=0.1, key_prob=0.1, **kwargs):
         super().__init__(
-            minNumRooms=n_rooms,
-            maxNumRooms=n_rooms,
-            maxRoomSize=10,
+            minNumRooms=n_rooms, 
+            maxNumRooms=n_rooms, 
+            maxRoomSize=8, 
             **kwargs
         )
         self.key_prob = key_prob
@@ -171,7 +143,6 @@ class CorredorLavaSmart(MultiRoomEnv):
                             queue.append((nx, ny))
         return False
 
-
 # Registro
 if "MiniGrid-LavaSmartMulti-v0" in gym.envs.registry:
     del gym.envs.registry["MiniGrid-LavaSmartMulti-v0"]
@@ -180,7 +151,6 @@ register(
     id="MiniGrid-LavaSmartMulti-v0",
     entry_point=__name__ + ":CorredorLavaSmart",
 )
-
 
 # =============================================================================
 # 2. WRAPPER
@@ -194,7 +164,6 @@ class ImgObsWrapper(ObservationWrapper):
         )
     def observation(self, obs):
         return obs["image"]
-
 
 # =============================================================================
 # 3. CURRICULUM DE ENTRENAMIENTO
@@ -212,9 +181,9 @@ def train_lava_smart_multi():
         {"rooms": 9,  "lava": 0.20, "key": 0.20, "steps": 2_000_000},
         {"rooms": 12, "lava": 0.25, "key": 0.25, "steps": 2_000_000} 
     ]
-
+    
     log_dir = "./tensorboard_logs/"
-    model = None
+    model = None 
 
     print("🚀 INICIANDO ENTRENAMIENTO: LAVA SMART + MULTIPLE KEYS 🚀")
     
@@ -254,17 +223,14 @@ def train_lava_smart_multi():
             custom_objects = {"learning_rate": 0.0001, "ent_coef": 0.01}
             
             model = PPO.load(
-                initial_model_path,
-                env=env,
+                initial_model_path, 
+                env=env, 
                 custom_objects=custom_objects,
-                tensorboard_log=log_dir,
-                device="cpu"
+                tensorboard_log=log_dir
             )
         else:
             print(f"🧠 Transfiriendo agente a la siguiente fase...")
             model.set_env(env)
-            if model.device.type != 'cpu':
-                model.device = 'cpu'
 
         # Callbacks
         checkpoint_callback = CheckpointCallback(
@@ -275,11 +241,10 @@ def train_lava_smart_multi():
 
         # Entrenar
         model.learn(
-            total_timesteps=steps,
-            callback=[checkpoint_callback, progress_callback],  # Lista de callbacks
+            total_timesteps=steps, 
+            callback=checkpoint_callback,
             reset_num_timesteps=True,
-            tb_log_name=stage_name,
-            progress_bar=False  # <--- Desactivamos la nativa para usar la nuestra
+            tb_log_name=stage_name
         )
 
         final_save_name = f"{stage_name}_FINAL"
@@ -288,7 +253,6 @@ def train_lava_smart_multi():
         env.close()
 
     print("\n🏆 ¡ENTRENAMIENTO COMPLETADO CON ÉXITO! 🏆")
-
 
 if __name__ == "__main__":
     train_lava_smart_multi()

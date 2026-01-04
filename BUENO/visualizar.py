@@ -8,15 +8,15 @@ import time
 from collections import deque
 
 class CorredorLavaFinal(MultiRoomEnv):
-    def __init__(self, n_rooms=4, key_prob=0.4, lava_prob=0.25, **kwargs):
+    def __init__(self, n_rooms=4, key_prob=0.2, lava_prob=0.25, **kwargs):
         self.target_n_rooms = n_rooms
         self.key_prob = key_prob
         self.lava_prob = lava_prob
         
         super().__init__(
-            minNumRooms=n_rooms,
-            maxNumRooms=n_rooms,
-            maxRoomSize=8,
+            minNumRooms=n_rooms, 
+            maxNumRooms=n_rooms, 
+            maxRoomSize=10, 
             **kwargs
         )
 
@@ -163,7 +163,6 @@ def main():
             time.sleep(0.1)
     
     env.close()
-
 
 if __name__ == "__main__":
     main()
