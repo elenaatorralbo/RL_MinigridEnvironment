@@ -48,7 +48,7 @@ def run_final_curriculum():
         # --- FASE 3: LA RESISTENCIA (N4 - Tamaño 8) ---
         {
             "name": "3_Nivel_N4_Size8",
-            "id": "MiniGrid-MultiRoom-N6-v0",
+            "id": "MiniGrid-MultiRoom-N4-S8-v0",
             "steps": 700_000,
             "kwargs": {"minNumRooms": 6, "maxNumRooms": 6, "maxRoomSize": 8}
         }

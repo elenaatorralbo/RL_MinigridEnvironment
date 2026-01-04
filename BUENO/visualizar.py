@@ -12,23 +12,23 @@ import time
 # USER CONFIGURATION
 # =============================================================================
 # Path to your trained model
-MODEL_PATH = "checkpoints/3_Nivel_N4_Size8/3_Nivel_N4_Size8_700000_steps.zip" 
+MODEL_PATH = "checkpoints/3_Nivel_N4_size8/Nivel_2_5_Intermedio_700000_steps.zip" 
 
 # Number of testing episodes
 N_EPISODES = 1000     
 
 # Number of rooms (Difficulty)
-N_ROOMS = 8
+N_ROOMS = 16
 
 # Set to True to watch the agent play (slower)
 # Set to False for fast calculation (turbo mode)
-RENDER_ON_SCREEN = False 
+RENDER_ON_SCREEN = True 
 
 # =============================================================================
 # 1. ENVIRONMENT: MULTICOLOR + MAX 1 KEY
 # =============================================================================
 class MulticolorCorridorMax1(MultiRoomEnv):
-    def __init__(self, n_rooms=12, key_prob=0.0, **kwargs):
+    def __init__(self, n_rooms=12, key_prob=0.00, **kwargs):
         super().__init__(
             minNumRooms=n_rooms, 
             maxNumRooms=n_rooms, 
