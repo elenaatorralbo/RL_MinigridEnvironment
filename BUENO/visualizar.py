@@ -7,6 +7,7 @@ from stable_baselines3 import PPO
 import random
 import os
 import time
+from tqdm.auto import tqdm  # <--- AÑADIDO: Importamos la barra
 
 # =============================================================================
 # CONFIGURACIÓN DE USUARIO
@@ -18,15 +19,13 @@ MODEL_PATH = "Fase_4_Color_12Hab_FINAL3.zip"
 N_EPISODES = 1000
 
 # Número de habitaciones (Dificultad)
-N_ROOMS = 16
+N_ROOMS = 12
 
 # PROBABILIDAD DE QUE APAREZCA UNA LLAVE (0.0 a 1.0)
-# Pon 1.0 si quieres que SIEMPRE haya llave.
-# Pon 0.3 si quieres que aparezca el 30% de las veces.
 KEY_PROB = 0.5
 
 # Ver al agente jugar en pantalla (True) o cálculo rápido (False)
-RENDER_ON_SCREEN = True
+RENDER_ON_SCREEN = False
 
 
 # =============================================================================
@@ -129,7 +128,7 @@ def evaluate_agent():
     print(f"Modo Visual: {'ON' if RENDER_ON_SCREEN else 'OFF (Modo Turbo)'}")
 
     try:
-        model = PPO.load(MODEL_PATH)
+        model = PPO.load(MODEL_PATH, device='cpu')
     except Exception as e:
         print(f"Error cargando modelo: {e}")
         return
@@ -137,7 +136,10 @@ def evaluate_agent():
     wins = 0
     total_steps_in_wins = []
 
-    for i in range(N_EPISODES):
+    # --- CAMBIO AQUÍ: Creamos la barra de progreso ---
+    pbar = tqdm(range(N_EPISODES), desc="Evaluando")
+
+    for i in pbar:
         obs, _ = env.reset()
         done = False
         steps = 0
@@ -158,9 +160,14 @@ def evaluate_agent():
             result = "Victoria"
             total_steps_in_wins.append(steps)
 
+        # --- CAMBIO AQUÍ: Actualizamos estadísticas en la barra ---
+        current_win_rate = (wins / (i + 1)) * 100
+        pbar.set_postfix({"Wins": wins, "Rate": f"{current_win_rate:.1f}%"})
+
         # Imprimir progreso cada 10 episodios o si el modo visual está activo
         if RENDER_ON_SCREEN or (i + 1) % 10 == 0:
-            print(f"Episodio {i + 1}/{N_EPISODES} | Pasos: {steps} | {result}")
+            # Usamos tqdm.write para no romper la barra visual
+            tqdm.write(f"Episodio {i + 1}/{N_EPISODES} | Pasos: {steps} | {result}")
 
     # --- CÁLCULOS FINALES ---
     win_rate = (wins / N_EPISODES) * 100

@@ -106,10 +106,10 @@ class ImgObsWrapper(ObservationWrapper):
 # 3. CURRICULUM GRADUAL MULTICOLOR CON TENSORBOARD Y BARRA DE PROGRESO
 # =============================================================================
 def run_multicolor_curriculum():
-    initial_model_path = "Fase_4_Color_12Hab_FINAL2.zip"
+    initial_model_path = "Fase_4_Color_12Hab_FINAL3.zip"
 
     stages = [3, 6, 9, 12]
-    steps_per_stage = 2_000_000
+    steps_per_stage = 5_000_000
     log_dir = "./tensorboard_logs/"
 
     model = None
@@ -156,7 +156,7 @@ def run_multicolor_curriculum():
         # 3. Checkpoints Callback
         checkpoint_callback = CheckpointCallback(
             save_freq=100_000,
-            save_path=f"./checkpoints/{stage_name}2/",
+            save_path=f"./checkpoints/{stage_name}4/",
             name_prefix=stage_name,
             verbose=0  # Ponemos verbose 0 para que no ensucie la barra de progreso
         )
@@ -179,7 +179,7 @@ def run_multicolor_curriculum():
         )
 
         # 6. Guardar final
-        final_save_name = f"{stage_name}_FINAL3"
+        final_save_name = f"{stage_name}_FINAL4"
         model.save(final_save_name)
         # Usamos tqdm.write para imprimir sin romper la barra visual si quedara algo pendiente
         tqdm.write(f"✅ {stage_name} COMPLETADA. Guardado en {final_save_name}.zip")
