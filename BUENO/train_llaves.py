@@ -23,41 +23,48 @@ class ImgObsWrapper(ObservationWrapper):
         return obs["image"]
 
 # =============================================================================
-# 2. ENTRENAMIENTO DE HABILIDAD "USAR LLAVES"
+# 2. ENTRENAMIENTO DE HABILIDAD "USAR LLAVES" + TENSORBOARD
 # =============================================================================
 def train_doorkey():
     
     # Entorno oficial de Minigrid para aprender a usar llaves
-    # Es simple: Coger llave -> Ir a puerta -> Abrir -> Salir
     env_id = "MiniGrid-DoorKey-8x8-v0"
     
-    # Ruta de tu modelo experto en navegación (el del Nivel 2.5)
+    # Ruta de tu modelo experto en navegación
     prev_model_path = os.path.join("checkpoints", "Nivel_2_5_Intermedio", "Nivel_2_5_Intermedio_500000_steps.zip")
     new_model_name = "KeyDoor"
 
+    # ### NUEVO: Definimos la carpeta para los logs
+    log_dir = "./tensorboard_logs_keys/"
+
     print(f"--- 🔑 INICIANDO ENTRENAMIENTO DE LLAVES 🔑 ---")
     print(f"Objetivo: Aprender acciones 'Pickup' y 'Toggle'")
+    print(f"Logs de TensorBoard en: {log_dir}")
 
     # 1. Crear entorno DoorKey
     env = gym.make(env_id, render_mode=None)
     env = ImgObsWrapper(env)
 
     # 2. Cargar cerebro previo
-    # NOTA: Esto es Transfer Learning puro. 
-    # El agente sabe caminar, pero al principio intentará "chocar" contra la puerta
-    # hasta que por suerte pulse "Espacio" (Toggle) o "Coger".
     if os.path.exists(prev_model_path):
         print(f"🧠 Cargando cerebro experto en navegación: {prev_model_path}")
         
-        # Bajamos el Learning Rate para que no olvide cómo caminar mientras aprende a usar las manos
         custom_objects = {
             "learning_rate": 0.0001,
-            "ent_coef": 0.02 # Subimos un poco la curiosidad para que pruebe botones nuevos
+            "ent_coef": 0.1 
         }
-        model = PPO.load(prev_model_path, env=env, custom_objects=custom_objects)
+        
+        # ### NUEVO: Añadimos tensorboard_log al cargar
+        model = PPO.load(
+            prev_model_path, 
+            env=env, 
+            custom_objects=custom_objects,
+            tensorboard_log=log_dir # <--- Aquí activamos el logger
+        )
     else:
         print("⚠️ No encuentro el modelo anterior. Empezando de cero.")
-        model = PPO("MlpPolicy", env, verbose=1)
+        # ### NUEVO: También aquí por si acaso
+        model = PPO("MlpPolicy", env, verbose=1, tensorboard_log=log_dir)
 
     # 3. Guardado
     checkpoint_callback = CheckpointCallback(
@@ -67,11 +74,11 @@ def train_doorkey():
     )
 
     # 4. Entrenar
-    # 500k pasos deberían bastar para aprender la mecánica simple
     model.learn(
         total_timesteps=500_000, 
         callback=checkpoint_callback,
-        reset_num_timesteps=True
+        reset_num_timesteps=True,
+        tb_log_name="Entrenamiento_Llaves" # ### NUEVO: Nombre de la curva en la gráfica
     )
     
     model.save(new_model_name)
