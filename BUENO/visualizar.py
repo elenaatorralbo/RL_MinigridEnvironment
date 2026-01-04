@@ -14,9 +14,9 @@ class CorredorLavaFinal(MultiRoomEnv):
         self.lava_prob = lava_prob
         
         super().__init__(
-            minNumRooms=n_rooms, 
-            maxNumRooms=n_rooms, 
-            maxRoomSize=8, 
+            minNumRooms=n_rooms,
+            maxNumRooms=n_rooms,
+            maxRoomSize=8,
             **kwargs
         )
 
@@ -163,6 +163,7 @@ def main():
             time.sleep(0.1)
     
     env.close()
+
 
 if __name__ == "__main__":
     main()

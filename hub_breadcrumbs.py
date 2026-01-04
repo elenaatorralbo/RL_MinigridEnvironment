@@ -29,9 +29,9 @@ class SimpleMovementWrapper(gym.ActionWrapper):
     # =========================================================
 
 
-# 2. ENTORNO: HUB BREADCRUMBS (Migas de Pan)
+# 2. ENTORNO: HUB PORTAL (Teletransporte Directo a Puertas)
 # =========================================================
-class HubBreadcrumbsEnv(MiniGridEnv):
+class HubPortalEnv(MiniGridEnv):
     def __init__(self, render_mode=None):
         self.grid_w = 19
         self.grid_h = 19
@@ -45,13 +45,13 @@ class HubBreadcrumbsEnv(MiniGridEnv):
         self.pos_door_yellow = (6, 9)
         self.pos_goal = (1, 9)
 
-        mission_space = MissionSpace(mission_func=lambda: "follow breadcrumbs to goal")
+        mission_space = MissionSpace(mission_func=lambda: "portal navigation")
 
         super().__init__(
             mission_space=mission_space,
             width=self.grid_w,
             height=self.grid_h,
-            max_steps=3000,
+            max_steps=2500,
             render_mode=render_mode
         )
 
@@ -88,7 +88,7 @@ class HubBreadcrumbsEnv(MiniGridEnv):
         self.grid.set(*self.pos_key_yellow, self.key_yellow)
         self.place_obj(Goal(), top=self.pos_goal, size=(1, 1))
 
-        # --- EMBUDO (Lava para guiar) ---
+        # --- EMBUDO (Lava) ---
         # Sala Norte
         for y in range(1, h_top):
             self.grid.set(7, y, Lava());
@@ -131,22 +131,6 @@ class HubBreadcrumbsEnv(MiniGridEnv):
         self.opened_yellow = False
         obs, info = super().reset(seed=seed, options=options)
 
-        # --- DEFINIR MIGAS DE PAN (BREADCRUMBS) ---
-        # Lista de coordenadas que dan premio si las pisas
-        self.breadcrumbs = []
-
-        # Migas hacia la Llave Azul (Norte)
-        # Puerta está en y=6, Llave en y=1. Ponemos migas en 5, 4, 3, 2.
-        for y in range(5, 1, -1): self.breadcrumbs.append((9, y))
-
-        # Migas hacia la Llave Amarilla (Este)
-        # Puerta en x=12, Llave en x=17. Migas en 13, 14, 15, 16.
-        for x in range(13, 17): self.breadcrumbs.append((x, 9))
-
-        # Migas hacia la Meta (Oeste)
-        # Puerta en x=6, Meta en x=1. Migas en 5, 4, 3, 2.
-        for x in range(5, 1, -1): self.breadcrumbs.append((x, 9))
-
         self.target_pos = self._get_target_pos()
         self.prev_dist = self._get_dist_to(self.target_pos)
         return obs, info
@@ -170,77 +154,79 @@ class HubBreadcrumbsEnv(MiniGridEnv):
         obs, reward, terminated, truncated, info = super().step(action)
         state_changed = False
 
-        # --- 1. COMER MIGAS DE PAN (BREADCRUMBS) ---
-        # Si pisamos una baldosa mágica, ¡PREMIO!
-        if self.agent_pos in self.breadcrumbs:
-            # Solo da premio si corresponde a la fase actual
-            # (Ej: No dar premio por migas del Este si aún no tenemos la llave azul)
-            valid_crumb = False
+        # --- 1. IMÁN DE LLAVES + PORTAL A LA SIGUIENTE PUERTA ---
 
-            # Fase Norte (Buscando azul)
-            if self.opened_red and not self.has_blue and self.agent_pos[0] == 9 and self.agent_pos[1] < 6:
-                valid_crumb = True
-
-            # Fase Este (Buscando amarilla)
-            elif self.opened_blue and not self.has_yellow and self.agent_pos[1] == 9 and self.agent_pos[0] > 12:
-                valid_crumb = True
-
-            # Fase Oeste (Buscando meta)
-            elif self.opened_yellow and self.agent_pos[1] == 9 and self.agent_pos[0] < 6:
-                valid_crumb = True
-
-            if valid_crumb:
-                reward += 2.0  # ¡ÑAM! Premio directo
-                self.breadcrumbs.remove(self.agent_pos)  # La miga desaparece
-
-        # --- 2. IMÁN DE LLAVES + AUTO GIRO ---
+        # Llave Roja -> Portal a la Puerta Roja
         if not self.has_red and self.dist_between(self.agent_pos, self.pos_key_red) <= 1:
             self.has_red = True;
             self.grid.set(*self.pos_key_red, None)
+            # Portal a (9, 7). Justo debajo de la puerta roja (9, 6).
+            self.agent_pos = (9, 7);
             self.agent_dir = 3;
-            reward += 10.0;
+            reward += 20.0;
             state_changed = True
+            print(">> Roja conseguida -> Portal a Puerta Roja")
 
+        # Llave Azul -> Portal a la Puerta Azul
         elif not self.has_blue and self.dist_between(self.agent_pos, self.pos_key_blue) <= 1:
             self.has_blue = True;
             self.grid.set(*self.pos_key_blue, None)
-            self.agent_dir = 1;
+            # Portal a (11, 9). Justo a la izquierda de la puerta azul (12, 9).
+            self.agent_pos = (11, 9);
+            self.agent_dir = 0;
             reward += 20.0;
-            state_changed = True  # Girar al Sur para volver
-            print(">> ¡AZUL! Girando al Sur")
+            state_changed = True
+            print(">> Azul conseguida -> Portal a Puerta Azul")
 
+        # Llave Amarilla -> Portal a la Puerta Amarilla
         elif not self.has_yellow and self.dist_between(self.agent_pos, self.pos_key_yellow) <= 1:
             self.has_yellow = True;
             self.grid.set(*self.pos_key_yellow, None)
+            # Portal a (7, 9). Justo a la derecha de la puerta amarilla (6, 9).
+            self.agent_pos = (7, 9);
             self.agent_dir = 2;
             reward += 20.0;
-            state_changed = True  # Girar al Oeste para volver
-            print(">> ¡AMARILLA! Girando al Oeste")
+            state_changed = True
+            print(">> Amarilla conseguida -> Portal a Puerta Amarilla")
 
-        # --- 3. AUTO-OPEN ---
+        # --- 2. AUTO-OPEN + ASPIRADORA AL FONDO ---
         front_cell = self.grid.get(*self.front_pos)
         if action == self.actions.forward and front_cell and front_cell.type == 'door':
+
+            # Puerta Roja -> Aspirar al Norte (hacia llave azul)
             if front_cell.color == 'red' and self.has_red:
                 self.door_red.is_open = True;
                 self.opened_red = True;
-                self.has_red = False;
-                reward += 10.0;
+                self.has_red = False
+                self.agent_pos = (9, 3);
+                self.agent_dir = 3;
+                reward += 20.0;
                 state_changed = True
+
+            # Puerta Azul -> Aspirar al Este (hacia llave amarilla)
             elif front_cell.color == 'blue' and self.has_blue:
                 self.door_blue.is_open = True;
                 self.opened_blue = True;
-                self.has_blue = False;
-                reward += 10.0;
+                self.has_blue = False
+                self.agent_pos = (15, 9);
+                self.agent_dir = 0;
+                reward += 20.0;
                 state_changed = True
+
+            # Puerta Amarilla -> Aspirar al Oeste (hacia Meta)
             elif front_cell.color == 'yellow' and self.has_yellow:
                 self.door_yellow.is_open = True;
                 self.opened_yellow = True;
-                self.has_yellow = False;
-                reward += 10.0;
+                self.has_yellow = False
+                self.agent_pos = (3, 9);
+                self.agent_dir = 2;
+                reward += 20.0;
                 state_changed = True
 
         # --- REWARDS ---
         if terminated and reward > 0: reward += 100.0
+
+        # Living Cost (importante)
         reward -= 0.01
 
         self.target_pos = self._get_target_pos()
@@ -256,7 +242,7 @@ class HubBreadcrumbsEnv(MiniGridEnv):
 
 
 try:
-    register(id='MiniGrid-HubBreadcrumbs-v20', entry_point='__main__:HubBreadcrumbsEnv')
+    register(id='MiniGrid-HubPortal-v22', entry_point='__main__:HubPortalEnv')
 except:
     pass
 
@@ -265,8 +251,8 @@ except:
 # =========================================================
 
 if __name__ == "__main__":
-    env_id = "MiniGrid-HubBreadcrumbs-v20"
-    TOTAL_TIMESTEPS = 700_000
+    env_id = "MiniGrid-HubPortal-v22"
+    TOTAL_TIMESTEPS = 500_000
 
     vec_env = make_vec_env(env_id, n_envs=8, wrapper_class=lambda e: FlatObsWrapper(SimpleMovementWrapper(e)))
 
@@ -291,9 +277,9 @@ if __name__ == "__main__":
         def _on_training_end(self): self.pbar.close()
 
 
-    print(f"🚀 Iniciando (Modo: MIGAS DE PAN)...")
+    print(f"🚀 Iniciando (Modo: PORTAL)...")
     model.learn(total_timesteps=TOTAL_TIMESTEPS, callback=ProgressBar(TOTAL_TIMESTEPS))
-    model.save("ppo_hub_breadcrumbs")
+    model.save("ppo_hub_portal")
 
     # Visualizar
     print("--- Testeando ---")
@@ -301,7 +287,7 @@ if __name__ == "__main__":
     env = SimpleMovementWrapper(env)
     env = FlatObsWrapper(env)
 
-    model = PPO.load("ppo_hub_breadcrumbs", device="cpu")
+    model = PPO.load("ppo_hub_portal", device="cpu")
 
     obs, _ = env.reset()
     while True:
