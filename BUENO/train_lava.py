@@ -138,7 +138,7 @@ class ImgObsWrapper(ObservationWrapper):
 def run_lava_curriculum_max1():
     
     # RUTA: El modelo final de la Fase Multicolor
-    initial_model_path = "Fase_4_Color_12Hab_FINAL2.zip" 
+    initial_model_path = "Fase_4_Color_12Hab_FINAL3.zip"
     
     # CONFIGURACIÓN PROGRESIVA (Habitaciones + Probabilidad Lava)
     stages_config = [

@@ -12,7 +12,7 @@ import time
 # USER CONFIGURATION
 # =============================================================================
 # Path to your trained model
-MODEL_PATH = "checkpoints/3_Nivel_N4_size8/Nivel_2_5_Intermedio_700000_steps.zip" 
+MODEL_PATH = "Fase_4_Color_12Hab_FINAL3.zip"
 
 # Number of testing episodes
 N_EPISODES = 1000     
