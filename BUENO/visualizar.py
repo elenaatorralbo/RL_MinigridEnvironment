@@ -13,7 +13,7 @@ from tqdm.auto import tqdm  # <--- AÑADIDO: Importamos la barra
 # CONFIGURACIÓN DE USUARIO
 # =============================================================================
 # Ruta al modelo entrenado
-MODEL_PATH = "Fase_4_Color_12Hab_FINAL3.zip"
+MODEL_PATH = "Fase_4_Color_12Hab_FINAL4.zip"
 
 # Número de episodios de test
 N_EPISODES = 1000
@@ -25,7 +25,7 @@ N_ROOMS = 12
 KEY_PROB = 0.5
 
 # Ver al agente jugar en pantalla (True) o cálculo rápido (False)
-RENDER_ON_SCREEN = True
+RENDER_ON_SCREEN = False
 
 
 # =============================================================================
