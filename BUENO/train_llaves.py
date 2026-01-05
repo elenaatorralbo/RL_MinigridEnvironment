@@ -5,84 +5,80 @@ from stable_baselines3.common.callbacks import CheckpointCallback
 from gymnasium import spaces, ObservationWrapper
 import os
 
+""" Script: Training Script for Key-Door Skill in MiniGrid
+This script implements the second stage of the Curriculum Learning pipeline.
+It leverages a pre-trained Navigation Expert (from the previous stage) and fine-tunes it
+in the 'MiniGrid-DoorKey-8x8-v0' environment."""
+
 # =============================================================================
-# 1. WRAPPER (EL MISMO)
+# 1. IMAGE OBSERVATION WRAPPER: to use only preprocessed image observations. This wrapper extracts only 
+# the 'image' tensor (H, W, C) to make it compatible with the Stable-Baselines3 CNN/Mlp policies.
 # =============================================================================
 class ImgObsWrapper(ObservationWrapper):
     def __init__(self, env):
         super().__init__(env)
-        img_space = env.observation_space.spaces["image"]
-        self.observation_space = spaces.Box(
+        img_space = env.observation_space.spaces["image"]   # Extract 'image' space
+        self.observation_space = spaces.Box(    # Define new observation space as a Box of pixel values ("uint8": 0-255)
             low=0,
             high=255,
             shape=img_space.shape,
             dtype="uint8"
         )
 
-    def observation(self, obs):
+    def observation(self, obs): # Return only the image part of the observation
         return obs["image"]
 
 # =============================================================================
-# 2. ENTRENAMIENTO DE HABILIDAD "USAR LLAVES" + TENSORBOARD
+# 2. TRAINING FUNCTION FOR KEY-DOOR ENVIRONMENT
 # =============================================================================
 def train_doorkey():
     
-    # Entorno oficial de Minigrid para aprender a usar llaves
-    env_id = "MiniGrid-DoorKey-8x8-v0"
+    env_id = "MiniGrid-DoorKey-8x8-v0" # Environment ID for Key-Door task
     
-    # Ruta de tu modelo experto en navegación
-    prev_model_path = os.path.join("checkpoints", "Nivel_2_5_Intermedio", "Nivel_2_5_Intermedio_500000_steps.zip")
+    prev_model_path = os.path.join("checkpoints", "Nivel_2_5_Intermedio", "Nivel_2_5_Intermedio_500000_steps.zip") #Pre-trained Navigation model
     new_model_name = "KeyDoor"
 
-    # ### NUEVO: Definimos la carpeta para los logs
-    log_dir = "./tensorboard_logs_keys/"
+    log_dir = "./tensorboard_logs_keys/" # Directory for TensorBoard logs
 
-    print(f"--- 🔑 INICIANDO ENTRENAMIENTO DE LLAVES 🔑 ---")
-    print(f"Objetivo: Aprender acciones 'Pickup' y 'Toggle'")
-    print(f"Logs de TensorBoard en: {log_dir}")
-
-    # 1. Crear entorno DoorKey
+    # 1. Create environment
     env = gym.make(env_id, render_mode=None)
     env = ImgObsWrapper(env)
 
-    # 2. Cargar cerebro previo
+    # 2. Load pre-trained model
     if os.path.exists(prev_model_path):
         print(f"🧠 Cargando cerebro experto en navegación: {prev_model_path}")
         
         custom_objects = {
-            "learning_rate": 0.0001,
-            "ent_coef": 0.1 
+            "learning_rate": 0.0001, # Low learning rate to don't forget previous knowledge
+            "ent_coef": 0.1 # Higher entropy coefficient to encourage exploration and learning the new skill
         }
         
-        # ### NUEVO: Añadimos tensorboard_log al cargar
-        model = PPO.load(
+        model = PPO.load( # Load the previous model
             prev_model_path, 
             env=env, 
             custom_objects=custom_objects,
-            tensorboard_log=log_dir # <--- Aquí activamos el logger
+            tensorboard_log=log_dir 
         )
     else:
-        print("⚠️ No encuentro el modelo anterior. Empezando de cero.")
-        # ### NUEVO: También aquí por si acaso
+        print("Error: Pre-trained model not found. Starting training from scratch.")
         model = PPO("MlpPolicy", env, verbose=1, tensorboard_log=log_dir)
 
-    # 3. Guardado
+    # 3. Save checkpoints during training
     checkpoint_callback = CheckpointCallback(
-        save_freq=50000,
-        save_path=f"./checkpoints/{new_model_name}/",
+        save_freq=50000, # Save every 50k steps
+        save_path=f"./checkpoints/{new_model_name}/", # Directory to save checkpoints
         name_prefix=new_model_name
     )
 
-    # 4. Entrenar
+    # 4. Train
     model.learn(
-        total_timesteps=500_000, 
+        total_timesteps=500_000, # Train for 500k steps
         callback=checkpoint_callback,
         reset_num_timesteps=True,
-        tb_log_name="Entrenamiento_Llaves" # ### NUEVO: Nombre de la curva en la gráfica
+        tb_log_name="KeyDoor"
     )
     
     model.save(new_model_name)
-    print("--- 🔓 ENTRENAMIENTO DE LLAVES COMPLETADO ---")
 
 if __name__ == "__main__":
     train_doorkey()

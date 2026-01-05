@@ -7,67 +7,70 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback, BaseCallback
 import random
 import os
-from tqdm.auto import tqdm  # <--- IMPORTANTE: Importamos tqdm
+from tqdm.auto import tqdm  
+
+""" Script: Curriculum Learning with Multicolor Corridor in MiniGrid
+This script implements a Phased Forward Curriculum Learning approach
+to combine the Key-Door skill with navigation environments."""
 
 
 # =============================================================================
-# 0. CALLBACK PARA LA BARRA DE PROGRESO (NUEVO)
+# 0. PROGRESS BAR CALLBACK FOR TRAINING
 # =============================================================================
 class ProgressBarCallback(BaseCallback):
+
     """
-    Callback personalizado para mostrar una barra de progreso con tqdm durante el entrenamiento.
+   Custom callback to display a progress bar with tqdm during training.
     """
 
-    def __init__(self, total_timesteps, description="Entrenando"):
+    def __init__(self, total_timesteps, description="Training"):
         super().__init__()
         self.total_timesteps = total_timesteps
         self.description = description
         self.pbar = None
 
-    def _on_training_start(self):
-        # Inicializar la barra cuando empieza el entrenamiento
-        self.pbar = tqdm(total=self.total_timesteps, desc=self.description, dynamic_ncols=True)
+    def _on_training_start(self): # Initialize the progress bar when training starts
+        self.pbar = tqdm(total=self.total_timesteps, desc=self.description, dynamic_ncols=True) 
 
-    def _on_step(self):
-        # Actualizar la barra. Si usas entornos vectorizados, incrementa por n_envs
+    def _on_step(self):  # Update the progress bar. If using vectorized environments, increment by n_envs
         self.pbar.update(self.training_env.num_envs)
         return True
 
-    def _on_training_end(self):
-        # Cerrar la barra al terminar
+    def _on_training_end(self): # Close the progress bar when training ends
         if self.pbar:
             self.pbar.close()
 
-
 # =============================================================================
-# 1. DEFINICIÓN DEL ENTORNO MULTICOLOR
+# 1. CUSTOM MULTICOLOR CORRIDOR ENVIRONMENT
+# Environment with several rooms and doors where each door has a different color and requires its corresponding key.
 # =============================================================================
 class CorredorMulticolor(MultiRoomEnv):
-    def __init__(self, n_rooms=4, key_prob=0.2, **kwargs):
+
+    def __init__(self, n_rooms=4, key_prob=0.2, **kwargs): # Initialize with number of rooms and key probability
         super().__init__(
-            minNumRooms=n_rooms,
-            maxNumRooms=n_rooms,
-            maxRoomSize=10,
+            minNumRooms=n_rooms, # Minimum number of rooms
+            maxNumRooms=n_rooms, # Maximum number of rooms
+            maxRoomSize=10, # Maximum room size, this dimensions consider the walls, so the real dimensions of the room are (maxRoomSize-2) x (maxRoomSize-2)
             **kwargs
         )
         self.key_prob = key_prob
 
-    def _gen_grid(self, width, height):
+    def _gen_grid(self, width, height): # Generate the grid with doors and keys
         super()._gen_grid(width, height)
 
-        valid_colors = ['red', 'blue', 'purple', 'yellow', 'grey']
+        valid_colors = ['red', 'blue', 'purple', 'yellow', 'grey']  # List of valid colors for doors and keys
 
-        for i, room in enumerate(self.rooms):
+        for i, room in enumerate(self.rooms):   # Iterate through rooms to place doors and keys
             if i == len(self.rooms) - 1:
                 break
 
-            if random.random() < self.key_prob:
+            if random.random() < self.key_prob: # Place a door with a certain probability
                 door_pos = room.exitDoorPos
-                color = random.choice(valid_colors)
+                color = random.choice(valid_colors) # Choose a random color for the door
 
-                self.grid.set(door_pos[0], door_pos[1], Door(color, is_locked=True))
+                self.grid.set(door_pos[0], door_pos[1], Door(color, is_locked=True)) # Place the door
 
-                self.place_obj(
+                self.place_obj( # Place the corresponding key in the room (must be accessible)
                     Key(color),
                     top=room.top,
                     size=room.size,
@@ -75,6 +78,7 @@ class CorredorMulticolor(MultiRoomEnv):
                 )
 
 
+# Register the custom environment
 if "MiniGrid-CorredorMulticolor-v0" in gym.envs.registry:
     del gym.envs.registry["MiniGrid-CorredorMulticolor-v0"]
 
@@ -85,109 +89,96 @@ register(
 
 
 # =============================================================================
-# 2. WRAPPER DE IMAGEN
+# 2. IMAGE OBSERVATION WRAPPER: to use only preprocessed image observations. This wrapper extracts only 
+# the 'image' tensor (H, W, C) to make it compatible with the Stable-Baselines3 CNN/Mlp policies.
 # =============================================================================
 class ImgObsWrapper(ObservationWrapper):
     def __init__(self, env):
         super().__init__(env)
-        img_space = env.observation_space.spaces["image"]
-        self.observation_space = spaces.Box(
+        img_space = env.observation_space.spaces["image"]   # Extract 'image' space
+        self.observation_space = spaces.Box(    # Define new observation space as a Box of pixel values ("uint8": 0-255)
             low=0,
             high=255,
             shape=img_space.shape,
             dtype="uint8"
         )
 
-    def observation(self, obs):
+    def observation(self, obs): # Return only the image part of the observation
         return obs["image"]
-
-
+    
 # =============================================================================
-# 3. CURRICULUM GRADUAL MULTICOLOR CON TENSORBOARD Y BARRA DE PROGRESO
+# 3. GRADUAL MULTICOLOR CURRICULUM FUNCTION
 # =============================================================================
 def run_multicolor_curriculum():
-    initial_model_path = "Fase_4_Color_12Hab_FINAL3.zip"
+    initial_model_path = "Fase_4_Color_12Hab_FINAL3.zip" # Pre-trained model path
 
+    # Definition of curriculum stages with increasing number of rooms
     stages = [3, 6, 9, 12]
     steps_per_stage = 5_000_000
     log_dir = "./tensorboard_logs/"
 
     model = None
 
-    print("🚀 INICIANDO CURRICULUM MULTICOLOR: 3 -> 12 HABITACIONES 🚀")
-    print(f"   Pasos por fase: {steps_per_stage}")
-    print(f"   TensorBoard Logs: {log_dir}")
-
     for i, n_rooms in enumerate(stages):
         stage_name = f"Fase_{i + 1}_Color_{n_rooms}Hab"
 
-        print(f"\n--------------------------------------------------")
-        print(f"🏁 PREPARANDO {stage_name} ({n_rooms} Habitaciones)")
-        # Nota: Quitamos los prints intermedios porque la barra de progreso se encarga de mostrar la actividad
-
-        # 1. Crear entorno
+        # 1. Create environment
         env = gym.make("MiniGrid-CorredorMulticolor-v0", render_mode=None, n_rooms=n_rooms)
         env = ImgObsWrapper(env)
 
-        # 2. Cargar / Transferir Modelo
+        # 2. Load / Transfer Model
         if model is None:
             if not os.path.exists(initial_model_path):
                 print(
-                    f"❌ ERROR: No encuentro '{initial_model_path}'. Asegúrate de tener el archivo o cambiar el nombre.")
+                    f"❌ ERROR: '{initial_model_path}' not found. Make sure the file exists or change the name.")
                 return
 
-            print(f"🧠 Cargando cerebro base: {initial_model_path}")
-
             custom_objects = {
-                "learning_rate": 0.0001,
-                "ent_coef": 0.01
+                "learning_rate": 0.0001, # Low learning rate to avoid forgetting previous knowledge
+                "ent_coef": 0.01 # Moderate entropy coefficient to balance exploration and exploitation
             }
 
-            model = PPO.load(
+            model = PPO.load(   # Load the initial pre-trained model
                 initial_model_path,
                 env=env,
                 custom_objects=custom_objects,
                 tensorboard_log=log_dir
             )
         else:
-            # print(f"🧠 Transfiriendo agente...") # Comentado para limpiar la salida visual
             model.set_env(env)
 
         # 3. Checkpoints Callback
         checkpoint_callback = CheckpointCallback(
-            save_freq=100_000,
+            save_freq=100_000,  # Save every 100k steps
             save_path=f"./checkpoints/{stage_name}4/",
             name_prefix=stage_name,
-            verbose=0  # Ponemos verbose 0 para que no ensucie la barra de progreso
+            verbose=0  # Set verbose to 0 to avoid cluttering the progress bar
         )
 
-        # 4. Progress Bar Callback (NUEVO)
-        # Creamos la barra específica para esta fase
+        # 4. Progress Bar Callback (NEW)
+        # Create the specific progress bar for this stage
         progress_callback = ProgressBarCallback(
             total_timesteps=steps_per_stage,
             description=f"🏃 {stage_name}"
         )
 
-        # 5. Entrenar
-        # Pasamos una LISTA de callbacks [checkpoint, progress]
+        # 5. Train 
         model.learn(
             total_timesteps=steps_per_stage,
             callback=[checkpoint_callback, progress_callback],
             reset_num_timesteps=True,
             tb_log_name=stage_name,
-            progress_bar=False  # Desactivamos la barra nativa de SB3 (si existiera) para usar la nuestra personalizada
+            progress_bar=False  # Disable native SB3 progress bar (if any) to use our custom one
         )
 
-        # 6. Guardar final
+        # 6. Save final model
         final_save_name = f"{stage_name}_FINAL4"
         model.save(final_save_name)
-        # Usamos tqdm.write para imprimir sin romper la barra visual si quedara algo pendiente
-        tqdm.write(f"✅ {stage_name} COMPLETADA. Guardado en {final_save_name}.zip")
+        tqdm.write(f"✅ {stage_name} COMPLETED. Saved as {final_save_name}.zip")
 
         env.close()
 
-    print("\n🏆 ¡MARATÓN MULTICOLOR COMPLETADO!")
-
+    print("Training with Multicolor Curriculum Completed")
 
 if __name__ == "__main__":
     run_multicolor_curriculum()
