@@ -137,6 +137,13 @@ class CorredorLavaSmart(MultiRoomEnv):
                             visited.add((nx, ny))
                             queue.append((nx, ny))
         return False
+    def step(self, action):
+        obs, reward, terminated, truncated, info = super().step(action)
+
+        if terminated and reward <= 0:
+            reward = -0.5  
+            
+        return obs, reward, terminated, truncated, info
 
 # Registro
 if "MiniGrid-LavaSmartMulti-v0" in gym.envs.registry:
@@ -174,10 +181,11 @@ def train_lava_smart_multi():
     
     # Curriculum Stages Configuration
     stages_config = [
-        {"rooms": 3,  "lava": 0.10, "key": 0.10, "steps": 2_000_000},
-        {"rooms": 6,  "lava": 0.15, "key": 0.15, "steps": 2_000_000},
-        {"rooms": 9,  "lava": 0.20, "key": 0.20, "steps": 2_000_000},
-        {"rooms": 12, "lava": 0.25, "key": 0.25, "steps": 2_000_000} 
+        {"rooms": 1, "lava": 0.15, "key": 0.0, "steps": 1_000_000},
+        {"rooms": 3, "lava": 0.05, "key": 0.10, "steps": 2_000_000},
+        {"rooms": 6, "lava": 0.75, "key": 0.15, "steps": 2_000_000},
+        {"rooms": 9, "lava": 0.10, "key": 0.20, "steps": 2_000_000},
+        {"rooms": 12, "lava": 0.10, "key": 0.25, "steps": 2_000_000} 
     ]
     
     log_dir = "./tensorboard_logs/"
@@ -191,9 +199,9 @@ def train_lava_smart_multi():
         key_prob = config["key"]
         steps = config["steps"]
         
-        stage_name = f"MultiKey_Fase{i+1}_R{n_rooms}_L{int(lava_prob*100)}_K{int(key_prob*100)}"
+        stage_name = f"Lava_Fase{i+1}_{steps}"
         
-        print(f"🔥 {stage_name}")
+        print(f"    {stage_name}")
         print(f"   Rooms: {n_rooms}")
         print(f"   Lava Probability: {lava_prob*100}%")
         print(f"   Key Probability: {key_prob*100}%")
@@ -214,13 +222,16 @@ def train_lava_smart_multi():
                 print("Error: Pre-trained model not found. Starting training from scratch.")
                 return
             
-            custom_objects = {"learning_rate": 0.0001, "ent_coef": 0.01}    # Low LR to avoid forgetting, moderate entropy for exploration
+            custom_objects = {"learning_rate": 0.0002, # Low LR to avoid forgetting, moderate entropy for exploration
+                            "ent_coef": 0.08,  
+                            "clip_range": 0.2}    
             
             model = PPO.load(
                 initial_model_path, 
                 env=env, 
                 custom_objects=custom_objects,
-                tensorboard_log=log_dir
+                tensorboard_log=log_dir,
+                device= "cpu"
             )
         else:
             print(f"Transferring agent to the next stage")
@@ -228,8 +239,8 @@ def train_lava_smart_multi():
 
         # Callbacks
         checkpoint_callback = CheckpointCallback(
-            save_freq=100_000,
-            save_path=f"./checkpoints_multikey/{stage_name}/",
+            save_freq=500_000,
+            save_path=f"./checkpoints/{stage_name}/",
             name_prefix=stage_name
         )
 

@@ -2,131 +2,164 @@ import gymnasium as gym
 from gymnasium import spaces, ObservationWrapper
 from gymnasium.envs.registration import register
 from minigrid.envs.multiroom import MultiRoomEnv
-from minigrid.core.world_object import Door, Key
+from minigrid.core.world_object import Door, Key, Lava, Wall, Goal
+from minigrid.core.grid import Grid
 from stable_baselines3 import PPO
 import random
 import os
 import time
-from tqdm.auto import tqdm  # <--- AÑADIDO: Importamos la barra
+import collections
+from tqdm.auto import tqdm
 
 # =============================================================================
-# CONFIGURACIÓN DE USUARIO
+# PARAMETERS
 # =============================================================================
-# Ruta al modelo entrenado
-MODEL_PATH = "Fase_4_Color_12Hab_FINAL4.zip"
-
-# Número de episodios de test
+MODEL_PATH = "checkpoints/Lava_Fase1_1000000/Lava_Fase1_1000000_500000_steps.zip"
 N_EPISODES = 1000
-
-# Número de habitaciones (Dificultad)
-N_ROOMS = 12
-
-# PROBABILIDAD DE QUE APAREZCA UNA LLAVE (0.0 a 1.0)
-KEY_PROB = 0.5
-
-# Ver al agente jugar en pantalla (True) o cálculo rápido (False)
-RENDER_ON_SCREEN = False
-
+N_ROOMS = 6 # Number of rooms
+KEY_PROB = 0.1 # Key probability
+LAVA_PROB = 0.05  # Lava probability
+RENDER_ON_SCREEN = True
 
 # =============================================================================
-# 1. ENTORNO: MULTICOLOR + MAX 1 LLAVE
+# 1. ENVIRONMENT
 # =============================================================================
-class MulticolorCorridorMax1(MultiRoomEnv):
-    def __init__(self, n_rooms=12, key_prob=0.5, **kwargs):
+class CorredorLavaSmart(MultiRoomEnv):
+    def __init__(self, n_rooms=4, lava_prob=0.1, key_prob=0.1, **kwargs):
         super().__init__(
-            minNumRooms=n_rooms,
-            maxNumRooms=n_rooms,
-            maxRoomSize=8,
+            minNumRooms=n_rooms, 
+            maxNumRooms=n_rooms, 
+            maxRoomSize=8, 
             **kwargs
         )
         self.key_prob = key_prob
+        self.lava_prob = lava_prob
 
     def _gen_grid(self, width, height):
+        max_retries = 500
+        for _ in range(max_retries):
+            self.grid = Grid(width, height)
+            try:
+                super()._gen_grid(width, height)
+            except Exception:
+                continue
+
+            self._place_doors_probabilistic()
+            self._add_lava_smart()
+
+            if self._is_path_clear():
+                return 
+
+        print("Could not generate a solvable level. Generating without lava.")
+        self.lava_prob = 0.0
         super()._gen_grid(width, height)
 
+    def _place_doors_probabilistic(self):
         valid_colors = ['red', 'blue', 'purple', 'yellow', 'grey']
-        locked_door_placed = False
-
-        # Barajamos las habitaciones para que la puerta cerrada pueda estar en cualquiera
-        room_indices = list(range(len(self.rooms) - 1))
-        random.shuffle(room_indices)
-
-        for i in room_indices:
-            room = self.rooms[i]
-
-            # Si aún no hemos puesto puerta Y el dado de probabilidad acierta...
-            if not locked_door_placed and random.random() < self.key_prob:
+        for i, room in enumerate(self.rooms):
+            if i == len(self.rooms) - 1:
+                break
+            if random.random() < self.key_prob:
                 door_pos = room.exitDoorPos
                 color = random.choice(valid_colors)
-
-                # 1. Ponemos la puerta cerrada
                 self.grid.set(door_pos[0], door_pos[1], Door(color, is_locked=True))
+                self.place_obj(Key(color), top=room.top, size=room.size, max_tries=100)
 
-                # 2. Ponemos la llave del mismo color
-                self.place_obj(
-                    Key(color),
-                    top=room.top,
-                    size=room.size,
-                    max_tries=100
-                )
+    def _add_lava_smart(self):
+        safe_cells = set()
+        safe_cells.add(self.agent_pos)
 
-                # Marcamos como puesta para no generar más de una
-                locked_door_placed = True
+        for x in range(self.grid.width):
+            for y in range(self.grid.height):
+                obj = self.grid.get(x, y)
+                if isinstance(obj, (Key, Door, Goal)):
+                    safe_cells.add((x, y))
+                    for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                        safe_cells.add((x + dx, y + dy))
 
+        for room in self.rooms:
+            for d_pos in [room.entryDoorPos, room.exitDoorPos]:
+                if d_pos:
+                    safe_cells.add(d_pos)
+                    for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                        safe_cells.add((d_pos[0]+dx, d_pos[1]+dy))
 
-# Registro del entorno
-if "MiniGrid-BenchmarkMax1-v0" in gym.envs.registry:
-    del gym.envs.registry["MiniGrid-BenchmarkMax1-v0"]
+            for x in range(room.top[0], room.top[0] + room.size[0]):
+                for y in range(room.top[1], room.top[1] + room.size[1]):
+                    cell = self.grid.get(x, y)
+                    if cell is None and (x, y) not in safe_cells:
+                        if random.random() < self.lava_prob:
+                            self.grid.set(x, y, Lava())
+
+    def _is_path_clear(self):
+        start = self.agent_pos
+        end = None
+        for x in range(self.grid.width):
+            for y in range(self.grid.height):
+                if isinstance(self.grid.get(x, y), Goal):
+                    end = (x, y)
+                    break
+        if not end: return False 
+
+        queue = collections.deque([start])
+        visited = {start}
+
+        while queue:
+            x, y = queue.popleft()
+            if (x, y) == end: return True
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < self.grid.width and 0 <= ny < self.grid.height:
+                    if (nx, ny) not in visited:
+                        cell = self.grid.get(nx, ny)
+                        if not isinstance(cell, (Lava, Wall)):
+                            visited.add((nx, ny))
+                            queue.append((nx, ny))
+        return False
+
+# Registro
+if "MiniGrid-LavaSmartBenchmark-v0" in gym.envs.registry:
+    del gym.envs.registry["MiniGrid-LavaSmartBenchmark-v0"]
 
 register(
-    id="MiniGrid-BenchmarkMax1-v0",
-    entry_point=__name__ + ":MulticolorCorridorMax1",
+    id="MiniGrid-LavaSmartBenchmark-v0",
+    entry_point=__name__ + ":CorredorLavaSmart",
 )
 
-
 # =============================================================================
-# 2. WRAPPER DE OBSERVACIÓN
+# 2. IMAGE OBSERVATION WRAPPER
 # =============================================================================
 class ImgObsWrapper(ObservationWrapper):
     def __init__(self, env):
         super().__init__(env)
         img_space = env.observation_space.spaces["image"]
         self.observation_space = spaces.Box(
-            low=0,
-            high=255,
-            shape=img_space.shape,
-            dtype="uint8"
+            low=0, high=255, shape=img_space.shape, dtype="uint8"
         )
 
     def observation(self, obs):
         return obs["image"]
 
-
 # =============================================================================
-# 3. FUNCIÓN DE BENCHMARK
+# 3. EVALUATION FUNCTION
 # =============================================================================
 def evaluate_agent():
     if not os.path.exists(MODEL_PATH):
-        print(f"ERROR: No encuentro el archivo del modelo: {MODEL_PATH}")
+        print(f"ERROR: No encuentro el modelo: {MODEL_PATH}")
         return
 
-    # Configuración de renderizado
     render_mode = "human" if RENDER_ON_SCREEN else None
 
-    # --- AQUÍ PASAMOS LA PROBABILIDAD DE LLAVE ---
     env = gym.make(
-        "MiniGrid-BenchmarkMax1-v0",
+        "MiniGrid-LavaSmartBenchmark-v0",
         render_mode=render_mode,
         n_rooms=N_ROOMS,
-        key_prob=KEY_PROB  # <--- IMPORTANTE: Usamos la variable de config
+        key_prob=KEY_PROB,
+        lava_prob=LAVA_PROB
     )
     env = ImgObsWrapper(env)
 
     print(f"Cargando modelo: {MODEL_PATH}")
-    print(f"Iniciando evaluación de {N_EPISODES} episodios...")
-    print(f"Probabilidad de llave: {KEY_PROB * 100}%")
-    print(f"Modo Visual: {'ON' if RENDER_ON_SCREEN else 'OFF (Modo Turbo)'}")
-
     try:
         model = PPO.load(MODEL_PATH, device='cpu')
     except Exception as e:
@@ -135,54 +168,50 @@ def evaluate_agent():
 
     wins = 0
     total_steps_in_wins = []
-
-    # --- CAMBIO AQUÍ: Creamos la barra de progreso ---
-    pbar = tqdm(range(N_EPISODES), desc="Evaluando")
+    pbar = tqdm(range(N_EPISODES), desc="Evaluando Agente")
 
     for i in pbar:
         obs, _ = env.reset()
         done = False
         steps = 0
+        reward_sum = 0
 
         while not done:
-            action, _ = model.predict(obs)
+            action, _ = model.predict(obs, deterministic=True)
             obs, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
             steps += 1
+            reward_sum = reward
 
             if RENDER_ON_SCREEN:
                 env.render()
 
-        # Análisis del episodio
-        result = "Derrota"
-        if reward > 0:
+        if reward_sum > 0:
             wins += 1
-            result = "Victoria"
             total_steps_in_wins.append(steps)
+            result = "Victoria"
+        else:
+            result = "Derrota/Lava"
 
-        # --- CAMBIO AQUÍ: Actualizamos estadísticas en la barra ---
         current_win_rate = (wins / (i + 1)) * 100
         pbar.set_postfix({"Wins": wins, "Rate": f"{current_win_rate:.1f}%"})
 
-        # Imprimir progreso cada 10 episodios o si el modo visual está activo
         if RENDER_ON_SCREEN or (i + 1) % 10 == 0:
-            # Usamos tqdm.write para no romper la barra visual
-            tqdm.write(f"Episodio {i + 1}/{N_EPISODES} | Pasos: {steps} | {result}")
+            tqdm.write(f"Episodio {i+1} | Pasos: {steps} | {result}")
 
-    # --- CÁLCULOS FINALES ---
+    # Final Results
     win_rate = (wins / N_EPISODES) * 100
     avg_steps = sum(total_steps_in_wins) / len(total_steps_in_wins) if total_steps_in_wins else 0
 
-    print("\n" + "=" * 40)
-    print(f"Habitaciones: {N_ROOMS}")
-    print(f"Probabilidad Llave: {KEY_PROB}")
-    print(f"VICTORIAS TOTALES:  {wins} / {N_EPISODES}")
-    print(f"TASA DE ÉXITO:      {win_rate:.2f}%")
+    print("\n" + "="*50)
+    print(f"RESULTADOS FINALES - {MODEL_PATH}")
+    print(f"Habitaciones: {N_ROOMS} | Prob. Llave: {KEY_PROB} | Prob. Lava: {LAVA_PROB}")
+    print(f"TASA DE ÉXITO: {win_rate:.2f}% ({wins}/{N_EPISODES})")
     if wins > 0:
-        print(f"PASOS PROMEDIO:     {avg_steps:.1f} (en victorias)")
+        print(f"PROMEDIO DE PASOS (Victorias): {avg_steps:.1f}")
+    print("="*50)
 
     env.close()
-
 
 if __name__ == "__main__":
     evaluate_agent()
