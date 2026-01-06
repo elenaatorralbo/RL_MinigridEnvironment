@@ -244,7 +244,7 @@ def train_lava_smart_multi():
             name_prefix=stage_name
         )
 
-        # Entrenar
+        # Train
         model.learn(
             total_timesteps=steps, 
             callback=checkpoint_callback,
