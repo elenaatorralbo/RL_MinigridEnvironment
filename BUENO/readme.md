@@ -24,14 +24,14 @@ python train.py
 
 Fine-tunes the agent in MiniGrid-DoorKey-8x8-v0 to learn specific "Pickup" and "Toggle" actions required to interact with objects.
 
-python train_llaves.py
+python train_key.py
 
 
 3. Phase 3: Integration (Multicolor)
 
 Combines navigation and key usage in a custom CorredorMulticolor environment (up to 12 rooms).
 
-python perso.py
+python train_integration.py
 
 
 4. Phase 4: Final Complexity (Smart Lava)
@@ -45,7 +45,7 @@ python train_lava.py
 
 To watch the trained agent perform in the final environment:
 
-python visualizar.py
+python visualize.py
 
 
 This script renders 3 episodes of the LavaCorridorFinal environment.
@@ -72,6 +72,6 @@ train_lava.py
 
 Phase 4. Final training with CorredorLavaSmart.
 
-visualice.py
+visualize.py
 
 Inference script for human evaluation and rendering.
