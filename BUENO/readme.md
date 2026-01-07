@@ -60,11 +60,11 @@ train.py
 
 Phase 1. Curriculum for basic navigation (2, 6, 8 rooms).
 
-train_llaves.py
+train_key.py
 
 Phase 2. Specialized training for DoorKey tasks.
 
-perso.py
+train_integration.py
 
 Phase 3. Custom environment CorredorMulticolor implementation.
 
@@ -72,6 +72,6 @@ train_lava.py
 
 Phase 4. Final training with CorredorLavaSmart.
 
-visualizar.py
+visualice.py
 
 Inference script for human evaluation and rendering.
