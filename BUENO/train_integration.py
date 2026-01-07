@@ -136,7 +136,7 @@ def run_multicolor_curriculum():
 
             custom_objects = {
                 "learning_rate": 0.0001, # Low learning rate to avoid forgetting previous knowledge
-                "ent_coef": 0.01 # Moderate entropy coefficient to balance exploration and exploitation
+                "ent_coef": 0.1 # Higher entropy coefficient to encourage exploration and learning the new skill
             }
 
             model = PPO.load(   # Load the initial pre-trained model

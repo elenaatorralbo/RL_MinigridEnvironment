@@ -59,7 +59,7 @@ def run_final_curriculum():
             "name": "3_Nivel_N4_Size8",
             "id": "MiniGrid-MultiRoom-N4-S8-v0", # Environment ID
             "steps": 700_000, # 700k steps for phase 3
-            "kwargs": {"minNumRooms": 6, "maxNumRooms": 6, "maxRoomSize": 8} # Custom kwargs for this environment (6 rooms, max size 8)
+            "kwargs": {"minNumRooms": 8, "maxNumRooms": 8, "maxRoomSize": 8} # Custom kwargs for this environment (6 rooms, max size 8)
         }
     ]
 
