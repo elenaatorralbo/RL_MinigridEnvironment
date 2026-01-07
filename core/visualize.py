@@ -22,7 +22,8 @@ Also includes detailed logging of performance metrics and optional on-screen ren
 # =============================================================================
 # PARAMETERS
 # =============================================================================
-MODEL_PATH = "./Fase_4_Color_12Hab_FINAL4.zip"   #Model path to evaluate
+MODEL_PATH = "./Fase_4_Color_12Hab_FINAL4.zip"   # Model path to evaluate
+MODEL_PATH =  "./checkpoints/3_Nivel_N4_size8/Nivel_2_5_Intermedio_700000_steps.zip"
 N_EPISODES = 1000   # Number of evaluation episodes
 N_ROOMS = 6 # Number of rooms
 KEY_PROB = 0.1 # Key probability
