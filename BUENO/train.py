@@ -81,7 +81,7 @@ def run_final_curriculum():
             model = PPO(
                 "MlpPolicy", # Using MlpPolicy for image observations
                 env, 
-                verbose=1, 
+                verbose=1, # To see training info
                 learning_rate=0.0003, # Low learning rate for stable training, avoid high variance
                 ent_coef=0.01,  # Entropy coefficient to encourage exploration (very important to avoid local minima)
                 tensorboard_log=log_dir 
@@ -107,7 +107,7 @@ def run_final_curriculum():
         # 5. Save the model at the end of the phase
         save_path = f"{stage['name']}_FINAL" 
         model.save(save_path) # Directory to save
-        print(f"✅ PHASE {i+1} COMPLETED. Model saved at: {save_path}.zip")
+        print(f" PHASE {i+1} COMPLETED. Model saved at: {save_path}.zip")
         
         env.close()
 

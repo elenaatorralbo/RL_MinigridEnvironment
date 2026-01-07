@@ -5,10 +5,12 @@ from stable_baselines3.common.callbacks import CheckpointCallback
 from gymnasium import spaces, ObservationWrapper
 import os
 
-""" Script: Training Script for Key-Door Skill in MiniGrid
+""" 
+Script: Training Script for Key-Door Skill in MiniGrid
 This script implements the second stage of the Curriculum Learning pipeline.
 It leverages a pre-trained Navigation Expert (from the previous stage) and fine-tunes it
-in the 'MiniGrid-DoorKey-8x8-v0' environment."""
+in the 'MiniGrid-DoorKey-8x8-v0' environment.
+"""
 
 # =============================================================================
 # 1. IMAGE OBSERVATION WRAPPER: to use only preprocessed image observations. This wrapper extracts only 
@@ -46,7 +48,6 @@ def train_doorkey():
 
     # 2. Load pre-trained model
     if os.path.exists(prev_model_path):
-        print(f"🧠 Cargando cerebro experto en navegación: {prev_model_path}")
         
         custom_objects = {
             "learning_rate": 0.0001, # Low learning rate to don't forget previous knowledge

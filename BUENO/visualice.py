@@ -11,18 +11,26 @@ import time
 import collections
 from tqdm.auto import tqdm
 
+"""
+Script: Evaluation Script for Lava-Enhanced MultiRoom Environment in MiniGrid
+This script evaluates a pre-trained PPO agent in a custom MiniGrid environment that 
+incorporates lava obstacles along with keys and doors.
+Scripted parameters allow customization of the number of rooms, key probability, and lava probability.
+Also includes detailed logging of performance metrics and optional on-screen rendering.
+"""
+
 # =============================================================================
 # PARAMETERS
 # =============================================================================
-MODEL_PATH = "checkpoints/Lava_Fase1_1000000/Lava_Fase1_1000000_500000_steps.zip"
-N_EPISODES = 1000
+MODEL_PATH = "checkpoints/Lava_Fase1_1000000/Lava_Fase1_1000000_500000_steps.zip"   #Model path to evaluate
+N_EPISODES = 1000   # Number of evaluation episodes
 N_ROOMS = 6 # Number of rooms
 KEY_PROB = 0.1 # Key probability
 LAVA_PROB = 0.05  # Lava probability
-RENDER_ON_SCREEN = True
+RENDER_ON_SCREEN = True # Whether to render the environment on screen
 
 # =============================================================================
-# 1. ENVIRONMENT
+# 1. ENVIRONMENT (adaptable number of rooms, key probability, and lava probability)
 # =============================================================================
 class CorredorLavaSmart(MultiRoomEnv):
     def __init__(self, n_rooms=4, lava_prob=0.1, key_prob=0.1, **kwargs):
@@ -117,7 +125,7 @@ class CorredorLavaSmart(MultiRoomEnv):
                             queue.append((nx, ny))
         return False
 
-# Registro
+# Register the custom environment
 if "MiniGrid-LavaSmartBenchmark-v0" in gym.envs.registry:
     del gym.envs.registry["MiniGrid-LavaSmartBenchmark-v0"]
 
@@ -145,7 +153,6 @@ class ImgObsWrapper(ObservationWrapper):
 # =============================================================================
 def evaluate_agent():
     if not os.path.exists(MODEL_PATH):
-        print(f"ERROR: No encuentro el modelo: {MODEL_PATH}")
         return
 
     render_mode = "human" if RENDER_ON_SCREEN else None
@@ -159,16 +166,14 @@ def evaluate_agent():
     )
     env = ImgObsWrapper(env)
 
-    print(f"Cargando modelo: {MODEL_PATH}")
     try:
         model = PPO.load(MODEL_PATH, device='cpu')
     except Exception as e:
-        print(f"Error cargando modelo: {e}")
         return
 
     wins = 0
     total_steps_in_wins = []
-    pbar = tqdm(range(N_EPISODES), desc="Evaluando Agente")
+    pbar = tqdm(range(N_EPISODES), desc="Evaluating Agent")
 
     for i in pbar:
         obs, _ = env.reset()
@@ -189,26 +194,26 @@ def evaluate_agent():
         if reward_sum > 0:
             wins += 1
             total_steps_in_wins.append(steps)
-            result = "Victoria"
+            result = "Victory"
         else:
-            result = "Derrota/Lava"
+            result = "Defeat/Lava"
 
         current_win_rate = (wins / (i + 1)) * 100
         pbar.set_postfix({"Wins": wins, "Rate": f"{current_win_rate:.1f}%"})
 
         if RENDER_ON_SCREEN or (i + 1) % 10 == 0:
-            tqdm.write(f"Episodio {i+1} | Pasos: {steps} | {result}")
+            tqdm.write(f"Episode {i+1} | Steps: {steps} | {result}")
 
     # Final Results
     win_rate = (wins / N_EPISODES) * 100
     avg_steps = sum(total_steps_in_wins) / len(total_steps_in_wins) if total_steps_in_wins else 0
 
     print("\n" + "="*50)
-    print(f"RESULTADOS FINALES - {MODEL_PATH}")
-    print(f"Habitaciones: {N_ROOMS} | Prob. Llave: {KEY_PROB} | Prob. Lava: {LAVA_PROB}")
-    print(f"TASA DE ÉXITO: {win_rate:.2f}% ({wins}/{N_EPISODES})")
+    print(f"FINAL RESULTS - {MODEL_PATH}")
+    print(f"Rooms: {N_ROOMS} | Key Prob.: {KEY_PROB} | Lava Prob.: {LAVA_PROB}")
+    print(f"SUCCESS RATE: {win_rate:.2f}% ({wins}/{N_EPISODES})")
     if wins > 0:
-        print(f"PROMEDIO DE PASOS (Victorias): {avg_steps:.1f}")
+        print(f"AVERAGE STEPS (Victories): {avg_steps:.1f}")
     print("="*50)
 
     env.close()

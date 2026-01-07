@@ -18,9 +18,9 @@ import collections
 class CorredorLavaSmart(MultiRoomEnv):
     def __init__(self, n_rooms=4, lava_prob=0.1, key_prob=0.1, **kwargs): # Initialize with number of rooms, lava and key probabilities
         super().__init__(
-            minNumRooms=n_rooms, 
-            maxNumRooms=n_rooms, 
-            maxRoomSize=8, 
+            minNumRooms=n_rooms, # Minimum number of rooms
+            maxNumRooms=n_rooms, # Maximum number of rooms
+            maxRoomSize=8, # Maximum room size, this dimensions consider the walls, so the real dimensions of the room are (maxRoomSize-2) x (maxRoomSize-2)
             **kwargs
         )
         self.key_prob = key_prob
@@ -71,7 +71,12 @@ class CorredorLavaSmart(MultiRoomEnv):
                 self.place_obj(Key(color), top=room.top, size=room.size, max_tries=100) # Place the corresponding key
 
 
-    def _add_lava_smart(self): # Add lava while protecting keys and doors
+    """ 
+    Add lava obstacles while ensuring critical items and paths remain accessible. It protects:
+        A) Keys, Doors, and Goal by marking their cells and adjacent cells as safe.
+        B) Entry and Exit doors of rooms to maintain structural connectivity. 
+    """
+    def _add_lava_smart(self): 
 
         safe_cells = set()
         safe_cells.add(self.agent_pos)
@@ -110,6 +115,10 @@ class CorredorLavaSmart(MultiRoomEnv):
                         if random.random() < self.lava_prob:
                             self.grid.set(x, y, Lava())
 
+    """ 
+    Ensure there is a valid path from the agent's start position to the goal, avoiding lava and walls. 
+    It uses a simple Breadth-First Search (BFS) algorithm for pathfinding. 
+    """
     def _is_path_clear(self): # Define a simple BFS to check connectivity
 
         start = self.agent_pos
@@ -145,7 +154,7 @@ class CorredorLavaSmart(MultiRoomEnv):
             
         return obs, reward, terminated, truncated, info
 
-# Registro
+# Register the custom environment
 if "MiniGrid-LavaSmartMulti-v0" in gym.envs.registry:
     del gym.envs.registry["MiniGrid-LavaSmartMulti-v0"]
 
@@ -181,11 +190,11 @@ def train_lava_smart_multi():
     
     # Curriculum Stages Configuration
     stages_config = [
-        {"rooms": 1, "lava": 0.15, "key": 0.0, "steps": 1_000_000},
-        {"rooms": 3, "lava": 0.05, "key": 0.10, "steps": 2_000_000},
-        {"rooms": 6, "lava": 0.75, "key": 0.15, "steps": 2_000_000},
-        {"rooms": 9, "lava": 0.10, "key": 0.20, "steps": 2_000_000},
-        {"rooms": 12, "lava": 0.10, "key": 0.25, "steps": 2_000_000} 
+        {"rooms": 1, "lava": 0.15, "key": 0.0, "steps": 1_000_000}, # Phase 1: Simple navigation with lava
+        {"rooms": 3, "lava": 0.05, "key": 0.10, "steps": 2_000_000}, # Phase 2: Introduce keys and doors
+        {"rooms": 6, "lava": 0.075, "key": 0.15, "steps": 2_000_000}, # Phase 3: More rooms with higher lava density
+        {"rooms": 9, "lava": 0.10, "key": 0.20, "steps": 2_000_000}, # Phase 4: Increased complexity
+        {"rooms": 12, "lava": 0.10, "key": 0.25, "steps": 2_000_000}  # Phase 5: Maximum complexity
     ]
     
     log_dir = "./tensorboard_logs/"
@@ -254,7 +263,7 @@ def train_lava_smart_multi():
 
         final_save_name = f"{stage_name}_FINAL"
         model.save(final_save_name)
-        print(f"✅ Stage completed. Saved as {final_save_name}.zip")
+        print(f"Stage completed. Saved as {final_save_name}.zip")
         env.close()
 
     print("Training with Multicolor Curriculum Completed")

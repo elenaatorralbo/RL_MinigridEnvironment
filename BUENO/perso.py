@@ -9,10 +9,11 @@ import random
 import os
 from tqdm.auto import tqdm  
 
-""" Script: Curriculum Learning with Multicolor Corridor in MiniGrid
+""" 
+Script: Curriculum Learning with Multicolor Corridor in MiniGrid
 This script implements a Phased Forward Curriculum Learning approach
-to combine the Key-Door skill with navigation environments."""
-
+to combine the Key-Door skill with navigation environments.
+"""
 
 # =============================================================================
 # 0. PROGRESS BAR CALLBACK FOR TRAINING
@@ -50,7 +51,7 @@ class CorredorMulticolor(MultiRoomEnv):
         super().__init__(
             minNumRooms=n_rooms, # Minimum number of rooms
             maxNumRooms=n_rooms, # Maximum number of rooms
-            maxRoomSize=10, # Maximum room size, this dimensions consider the walls, so the real dimensions of the room are (maxRoomSize-2) x (maxRoomSize-2)
+            maxRoomSize=8, # Maximum room size, this dimensions consider the walls, so the real dimensions of the room are (maxRoomSize-2) x (maxRoomSize-2)
             **kwargs
         )
         self.key_prob = key_prob
@@ -130,7 +131,7 @@ def run_multicolor_curriculum():
         if model is None:
             if not os.path.exists(initial_model_path):
                 print(
-                    f"❌ ERROR: '{initial_model_path}' not found. Make sure the file exists or change the name.")
+                    f" ERROR: '{initial_model_path}' not found. Make sure the file exists or change the name.")
                 return
 
             custom_objects = {
@@ -159,7 +160,7 @@ def run_multicolor_curriculum():
         # Create the specific progress bar for this stage
         progress_callback = ProgressBarCallback(
             total_timesteps=steps_per_stage,
-            description=f"🏃 {stage_name}"
+            description=f"{stage_name}"
         )
 
         # 5. Train 
@@ -174,7 +175,7 @@ def run_multicolor_curriculum():
         # 6. Save final model
         final_save_name = f"{stage_name}_FINAL4"
         model.save(final_save_name)
-        tqdm.write(f"✅ {stage_name} COMPLETED. Saved as {final_save_name}.zip")
+        tqdm.write(f" {stage_name} COMPLETED. Saved as {final_save_name}.zip")
 
         env.close()
 
