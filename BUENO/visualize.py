@@ -22,11 +22,11 @@ Also includes detailed logging of performance metrics and optional on-screen ren
 # =============================================================================
 # PARAMETERS
 # =============================================================================
-MODEL_PATH = "Fase_4_Color_12Hab_FINAL4"   #Model path to evaluate
+MODEL_PATH = "./Fase_4_Color_12Hab_FINAL4.zip"   #Model path to evaluate
 N_EPISODES = 1000   # Number of evaluation episodes
 N_ROOMS = 6 # Number of rooms
 KEY_PROB = 0.1 # Key probability
-LAVA_PROB = 0.05  # Lava probability
+LAVA_PROB = 0.00  # Lava probability
 RENDER_ON_SCREEN = True # Whether to render the environment on screen
 
 # =============================================================================
