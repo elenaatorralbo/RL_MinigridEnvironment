@@ -115,7 +115,7 @@ def run_multicolor_curriculum():
 
     # Definition of curriculum stages with increasing number of rooms
     stages = [3, 6, 9, 12]
-    steps_per_stage = 5_000_000
+    steps_per_stage = 5_000_000 # Also executed previously with 500k, 1M, and 2M steps per stage
     log_dir = "./tensorboard_logs/"
 
     model = None
